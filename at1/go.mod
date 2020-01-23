@@ -7,4 +7,4 @@ require (
 	github.com/coreos/etcd v3.3.18+incompatible
 )
 
-replace athelper/logger v0.0.0 => ../at/
+replace athelper/logger v0.0.0 => ../athelper/

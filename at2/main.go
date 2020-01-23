@@ -1,19 +1,46 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
-	"net/http"
+	"flag"
+	"log"
+	"net/url"
 	"os"
+	"os/signal"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
+var addr = flag.String("addr", "localhost:11015", "http service address")
+
 func main() {
-	resp, err := http.Get("http://" + os.Args[1])
+	flag.Parse()
+	log.SetFlags(0)
+
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/graphql"}
+	log.Printf("connecting to %s", u.String())
+
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		fmt.Println(err.Error())
-		// handle error
+		log.Fatal("dial:", err)
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	fmt.Println(string(body))
+	defer c.Close()
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		for {
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+			log.Printf("recv: %s", message)
+		}
+	}()
+	time.Sleep(time.Second * 3)
 }

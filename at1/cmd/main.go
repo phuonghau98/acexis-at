@@ -3,8 +3,11 @@ package main
 import (
 	"athelper/logger/logger"
 	"athelper/logger/submit"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"strconv"
 	"time"
 )
@@ -18,7 +21,7 @@ func init() {
 }
 
 func submitFail(trainingServer string) {
-	err := submit.SubmitReport(trainingServer, false)
+	err := submit.SubmitReport(trainingServer, "1", false)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -75,14 +78,29 @@ func main() {
 		logger.NewSuccess("Received token")
 	}
 
-	err = checkPrivateAndPublicRoute(token)
+	reqPath := userRoute() + "phuong.hau"
+	req, _ := http.NewRequest("GET", reqPath, nil)
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	rsp, err := client.Do(req)
+	// if err != nil {
+	// 	return err
+	// }
+	defer rsp.Body.Close()
+	body, err := ioutil.ReadAll(rsp.Body)
+	var rspUser userWithID
+	err = json.Unmarshal(body, &rspUser)
+	// if len(rspUser.Username) == 0 {
+	// 	return fmt.Errorf("Cannot get user, check the body: %v", string(body))
+	// }
+	err = checkPrivateAndPublicRoute(token, fmt.Sprintf("%v", rspUser.ID))
 	if err != nil {
 		submitFail(*trainingServer)
 		logger.NewError(err.Error())
 	} else {
 		logger.NewSuccess("Private route and publish route work correctly")
 	}
-	err = submit.SubmitReport(*trainingServer, true)
+	err = submit.SubmitReport(*trainingServer, "1", true)
 	if err != nil {
 		fmt.Println(err.Error())
 	}

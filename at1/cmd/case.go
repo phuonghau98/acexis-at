@@ -17,6 +17,10 @@ type user struct {
 	Username string `json:"username"`
 }
 
+type userWithID struct {
+	ID interface{} `json:"_id,omitempty"`
+}
+
 type users []user
 
 type loginResponse struct {
@@ -77,15 +81,17 @@ func checkUserDuplication(dupUser user) error {
 	if err1 != nil {
 		return err1
 	}
+	time.Sleep(time.Second * 3)
 	rsp2, err2 := userRegistration(dupUser)
 	if err2 != nil {
 		return err2
 	}
+
 	if rsp2.StatusCode != 409 {
-		return fmt.Errorf("Two users whose usernames is the same exist, expected status code of 409 on the second response")
+		return fmt.Errorf("Username duplication check, expect status code of 409 on the second response, received %d", rsp2.StatusCode)
 	}
-	rsp1.Body.Close()
-	rsp2.Body.Close()
+	defer rsp1.Body.Close()
+	defer rsp2.Body.Close()
 	return nil
 }
 
@@ -131,12 +137,12 @@ func checkIfICanLogin(testUser user) (string, error) {
 	var receivedToken loginResponse
 	json.Unmarshal(rspBody, &receivedToken)
 	if len(receivedToken.Token) == 0 {
-		return "", fmt.Errorf("Cannot received token, check body: %v", string(rspBody))
+		return "", fmt.Errorf("Cannot rspUserreceived token, check body: %v", string(rspBody))
 	}
 	return receivedToken.Token, nil
 }
 
-func checkPrivateAndPublicRoute(token string) error {
+func checkPrivateAndPublicRoute(token string, userID string) error {
 	// Check if private route worked
 	publicExpectedStr := "public content"
 	req, _ := http.NewRequest("GET", publicResource(), nil)
@@ -160,9 +166,9 @@ func checkPrivateAndPublicRoute(token string) error {
 	}
 	defer rsp.Body.Close()
 	// Check if private route did work with token (s3cr3t key)
-	expectedStr := "private content of aUserId"
+	expectedStr := "private content of " + userID
 	req, _ = http.NewRequest("GET", privateResource(), nil)
-	req.Header.Set("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySUQiOiJhVXNlcklkIiwiaWF0IjoxNTE2MjM5MDIyfQ.i74GCdhh7_SLrqH0piaSdEDAeEL4xENTmCZ0u9Jaqzk")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	rsp, err = client.Do(req)
 	if err != nil || rsp.StatusCode == 404 {
 		return fmt.Errorf("Cannot process to %s, Error: %s", privateResource(), err)
